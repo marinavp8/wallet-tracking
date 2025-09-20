@@ -1,0 +1,40 @@
+{
+  "name": "wallet-tracking-ts",
+  "version": "1.0.0",
+  "description": "TypeScript scripts for Ethereum wallet tracking and block analysis",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "balance": "ts-node src/balance-finder.ts",
+    "block": "ts-node src/block-finder.ts",
+    "transfers": "ts-node src/transfer-events.ts",
+    "eth-transfers": "ts-node src/eth-transfers.ts",
+    "clean": "rm -rf dist output/*.csv output/*.json"
+  },
+  "keywords": [
+    "ethereum",
+    "blockchain",
+    "wallet",
+    "tracking",
+    "ethers",
+    "typescript"
+  ],
+  "author": "marinavp8",
+  "license": "MIT",
+  "dependencies": {
+    "ethers": "^6.8.1",
+    "csv-writer": "^1.6.0",
+    "commander": "^11.1.0",
+    "chalk": "^4.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "ts-node": "^10.9.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
