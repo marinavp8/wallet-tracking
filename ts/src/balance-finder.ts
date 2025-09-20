@@ -232,7 +232,7 @@ program
       
       let csv = headers.join(',') + '\n';
       for (const row of csvData) {
-        const values = headers.map(header => row[header]);
+        const values = headers.map(header => (row as any)[header]);
         csv += values.join(',') + '\n';
       }
       

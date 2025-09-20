@@ -180,7 +180,7 @@ program
         from: transfer.from,
         to: transfer.to,
         value: transfer.value,
-        valueEth: formatEther(transfer.value),
+        valueEth: formatEther(BigInt(transfer.value)),
         blockNumber: transfer.blockNumber,
         transactionHash: transfer.transactionHash,
         gasUsed: transfer.gasUsed.toString(),
@@ -246,8 +246,104 @@ program
         verbose: options.verbose
       };
 
-      // Call the fetch command logic
-      await program.commands[0]._action(fetchOptions);
+      // Use the same logic as fetch command (simplified)
+      console.log(chalk.blue('=== Recent ETH Transfers ==='));
+      console.log(`Block range: ${startBlock} to ${endBlock}`);
+      console.log(`RPC URL: ${config.rpcUrl}`);
+      console.log(`Minimum value: ${options.minValue} ETH`);
+
+      const ethTransfers: EthTransfer[] = [];
+      const minValueWei = ethers.parseEther(options.minValue);
+
+      console.log(chalk.yellow('\n=== Processing Blocks ==='));
+      
+      // Process blocks
+      for (let currentBlock = startBlock; currentBlock <= endBlock; currentBlock++) {
+        if (options.verbose) {
+          console.log(`Processing block ${currentBlock}`);
+        }
+
+        try {
+          const block = await retryOperation(async () => {
+            return await provider.getBlock(currentBlock, true);
+          });
+
+          if (!block || !block.transactions) {
+            continue;
+          }
+
+          for (const tx of block.transactions) {
+            // Type guard to ensure we have a transaction object, not just a hash
+            if (typeof tx === 'string') continue;
+            
+            const transaction = tx as ethers.TransactionResponse;
+            
+            // Skip contract creation transactions (no 'to' address)
+            if (!transaction.to) continue;
+
+            // Skip zero value transactions
+            if (transaction.value === 0n) continue;
+
+            // Apply minimum value filter
+            if (transaction.value < minValueWei) continue;
+
+            const transfer: EthTransfer = {
+              from: transaction.from,
+              to: transaction.to,
+              value: transaction.value.toString(),
+              blockNumber: currentBlock,
+              transactionHash: transaction.hash,
+              gasUsed: transaction.gasLimit,
+              gasPrice: transaction.gasPrice || 0n
+            };
+
+            ethTransfers.push(transfer);
+          }
+        } catch (error) {
+          console.error(chalk.red(`Error processing block ${currentBlock}:`), error);
+        }
+      }
+
+      console.log(chalk.green(`\n=== Processing Complete ===`));
+      console.log(`Found ${ethTransfers.length} ETH transfers`);
+
+      if (ethTransfers.length === 0) {
+        console.log(chalk.yellow('No ETH transfers found in the specified range'));
+        return;
+      }
+
+      // Save to CSV
+      const headers = [
+        'from',
+        'to',
+        'value',
+        'valueEth',
+        'blockNumber',
+        'transactionHash',
+        'gasUsed',
+        'gasPrice'
+      ];
+
+      const csvData = ethTransfers.map(transfer => ({
+        from: transfer.from,
+        to: transfer.to,
+        value: transfer.value,
+        valueEth: formatEther(BigInt(transfer.value)),
+        blockNumber: transfer.blockNumber,
+        transactionHash: transfer.transactionHash,
+        gasUsed: transfer.gasUsed.toString(),
+        gasPrice: transfer.gasPrice.toString()
+      }));
+
+      saveToCsv(csvData, options.output, headers);
+      console.log(chalk.green(`CSV saved: ${options.output}`));
+
+      // Save JSON if requested
+      if (options.json) {
+        const jsonFilename = options.output.replace('.csv', '.json');
+        saveToJson(ethTransfers, jsonFilename);
+        console.log(chalk.green(`JSON saved: ${jsonFilename}`));
+      }
     } catch (error) {
       console.error(chalk.red('Error:'), error);
       process.exit(1);
@@ -272,27 +368,32 @@ async function processBlock(
     const transfers: EthTransfer[] = [];
 
     for (const tx of block.transactions) {
+      // Type guard to ensure we have a transaction object, not just a hash
+      if (typeof tx === 'string') continue;
+      
+      const transaction = tx as ethers.TransactionResponse;
+      
       // Skip contract creation transactions (no 'to' address)
-      if (!tx.to) continue;
+      if (!transaction.to) continue;
 
       // Skip zero value transactions
-      if (tx.value === 0n) continue;
+      if (transaction.value === 0n) continue;
 
       // Apply minimum value filter
-      if (tx.value < minValueWei) continue;
+      if (transaction.value < minValueWei) continue;
 
       // Apply address filters
-      if (options.from && tx.from.toLowerCase() !== options.from.toLowerCase()) continue;
-      if (options.to && tx.to.toLowerCase() !== options.to.toLowerCase()) continue;
+      if (options.from && transaction.from.toLowerCase() !== options.from.toLowerCase()) continue;
+      if (options.to && transaction.to.toLowerCase() !== options.to.toLowerCase()) continue;
 
       const transfer: EthTransfer = {
-        from: tx.from,
-        to: tx.to,
-        value: tx.value.toString(),
+        from: transaction.from,
+        to: transaction.to,
+        value: transaction.value.toString(),
         blockNumber: blockNumber,
-        transactionHash: tx.hash,
-        gasUsed: tx.gasLimit, // Note: actual gas used requires transaction receipt
-        gasPrice: tx.gasPrice || 0n
+        transactionHash: transaction.hash,
+        gasUsed: transaction.gasLimit, // Note: actual gas used requires transaction receipt
+        gasPrice: transaction.gasPrice || 0n
       };
 
       transfers.push(transfer);
